@@ -16,4 +16,11 @@ const connectDB = async () => {
   }
 };
 
+// Gracefully handle shutdown signals to close the MongoDB connection.
+// process.on('SIGTERM', async () => {
+//   console.log('Gracefully shutting down...');
+//   await mongoose.disconnect();
+//   process.exit(0);
+// });
+
 export default connectDB;

@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { log } from "console";
 
 const registerUser = asyncHandler(async (req, res, next) => {
   //get user details from frontend
@@ -37,7 +38,16 @@ const registerUser = asyncHandler(async (req, res, next) => {
   }
 
   const avatarlocalPath = req.files?.avatar[0]?.path;
+
   const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+  // let coverImageLocalPath;
+  // if (
+  //   req.files &&
+  //   Array.isArray(req.files.coverImage && req.files.coverImage.length > 0)
+  // ) {
+  //   coverImageLocalPath = req.files?.coverImage[0]?.path;
+  // }
 
   if (!avatarlocalPath || !coverImageLocalPath) {
     throw new ApiError(400, "Avatar and cover image are required");
@@ -56,23 +66,17 @@ const registerUser = asyncHandler(async (req, res, next) => {
     password,
     username,
     avatar: avatar.url,
-    coverImage: coverImage.url,
+    coverImage: coverImage.url || " ",
   });
 
   const createUser = User.findById(user._id).select("-password -refreshToken");
   if (!createUser) {
     throw new ApiError(500, "User registration failed");
   }
-
-  res
+  console.log(createUser);
+  return res
     .status(201)
-    .json(
-      new ApiResponse(
-        200,
-        flatted.parse(flatted.stringify(createUser)),
-        "user registered successfully"
-      )
-    );
+    .json(new ApiResponse(200, createUser, "user registered successfully"));
 });
 
 export { registerUser };
