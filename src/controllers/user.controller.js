@@ -3,7 +3,26 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { log } from "console";
+
+// this function is used to generate the access token and refresh token by taking parameter as user id from fnc call..
+const generateAccessAndRefrenceTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    // it will update the refresh token in the database
+    user.refreshToken = refreshToken;
+    // save is the mongoose method to save the data in the database
+    await user.save({ validateBeforeSave: false });
+
+    // return the access token and refresh token to the controller function i.e generateAccessAndRefrenceTokens
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(500, "Failed to generate token");
+  }
+};
 
 const registerUser = asyncHandler(async (req, res, next) => {
   //get user details from frontend
@@ -79,4 +98,80 @@ const registerUser = asyncHandler(async (req, res, next) => {
     .json(new ApiResponse(200, createUser, "user registered successfully"));
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res, next) => {
+  // req body se data le aao
+  // validation
+  // user or email
+  //find user
+  //compare password or check
+  //generate token
+  //send cookie
+
+  const { email, username, password } = req.body;
+
+  if (!username || !email || !password) {
+    throw new ApiError(400, "All fields are required");
+  }
+  const user = await User.findOne({ $or: [{ email }, { username }] });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const isMatch = await user.isPasswordCorrect(password);
+  if (!isMatch) {
+    throw new ApiError(401, "Invalid credentials");
+  }
+
+  // this  method is use to call the function generateAccessAndRefrenceTokens by passing the user id as a function argument
+  const { accessToken, refreshToken } = await generateAccessAndRefrenceTokens(
+    user._id
+  );
+
+  // cookies are used to store the token in the browser
+  // res.cookie("refreshToken", refreshToken, {
+  //   httpOnly: true,
+
+  const loggedUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  }.status(200);
+  res
+    .cookie("refreshToken", refreshToken, options)
+    .cookie("accessToken", accessToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        { user: loggedUser, accessToken, refreshToken },
+        "User logged in successfully"
+      )
+    );
+});
+
+const logoutUser = asyncHandler(async (req, res, next) => {
+  // cookies remove kardo
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: { refreshToken: undefined },
+    },
+    { new: true }
+  );
+
+  options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clear("refreshToken", options)
+    .clear("accessToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+export { registerUser, loginUser, logoutUser };
